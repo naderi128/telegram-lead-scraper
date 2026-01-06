@@ -87,49 +87,55 @@ def render_sidebar():
     """Render sidebar with configuration options."""
     st.sidebar.markdown("## ⚙️ Configuration")
     
-    # API Credentials
-    st.sidebar.markdown("### 🔐 Telegram API Credentials")
-    st.sidebar.caption("Get these from [my.telegram.org](https://my.telegram.org)")
-    
-    api_id = st.sidebar.text_input(
-        "API ID",
-        value=st.session_state.api_id,
-        type="default"
-    )
-    
-    api_hash = st.sidebar.text_input(
-        "API Hash",
-        value=st.session_state.api_hash,
-        type="password"
-    )
-    
-    phone = st.sidebar.text_input(
-        "Phone Number",
-        value=st.session_state.phone,
-        placeholder="+1234567890"
-    )
-    
-    # Update session state
-    st.session_state.api_id = api_id
-    st.session_state.api_hash = api_hash
-    st.session_state.api_hash = api_hash
-    st.session_state.phone = phone
-    
     # Scraper Method
     st.sidebar.markdown("### 🛠️ Scraper Settings")
+    
+    # Defaults
+    api_id = st.session_state.api_id
+    api_hash = st.session_state.api_hash
+    phone = st.session_state.phone
+    
     scraper_type = st.sidebar.selectbox(
         "Scraping Method",
         ["Tgstat Scraper (Web)", "Telegram API (Direct)"],
         index=0 if st.session_state.scraper_type == "Tgstat Scraper (Web)" else 1
     )
     st.session_state.scraper_type = scraper_type
+
+    # Only show API credentials if using Telegram API
+    if "Telegram API" in scraper_type:
+        st.sidebar.markdown("### 🔐 Telegram API Credentials")
+        st.sidebar.caption("Get these from [my.telegram.org](https://my.telegram.org)")
+        
+        api_id = st.sidebar.text_input(
+            "API ID",
+            value=st.session_state.api_id,
+            type="default"
+        )
+        
+        api_hash = st.sidebar.text_input(
+            "API Hash",
+            value=st.session_state.api_hash,
+            type="password"
+        )
+        
+        phone = st.sidebar.text_input(
+            "Phone Number",
+            value=st.session_state.phone,
+            placeholder="+1234567890"
+        )
+        
+        # Authentication status
+        st.sidebar.markdown("---")
+        if st.session_state.authenticated:
+            st.sidebar.success("✅ Authenticated")
+        else:
+            st.sidebar.warning("⚠️ Not authenticated")
     
-    # Authentication status
-    st.sidebar.markdown("---")
-    if st.session_state.authenticated:
-        st.sidebar.success("✅ Authenticated")
-    else:
-        st.sidebar.warning("⚠️ Not authenticated")
+    # Update session state
+    st.session_state.api_id = api_id
+    st.session_state.api_hash = api_hash
+    st.session_state.phone = phone
     
     # Demo Mode
     st.sidebar.markdown("---")
@@ -463,54 +469,16 @@ def main():
     init_database(config.get('supabase_url'), config.get('supabase_key'))
     
     # Main content
-    tab1, tab2, tab3 = st.tabs(["🔓 Authentication", "🔍 Scraper", "📊 Data"])
+    is_tgstat = "Tgstat" in config.get('scraper_type', '')
     
-    with tab1:
-        st.markdown("### 🔐 Connect to Telegram")
+    if is_tgstat:
+        # Tgstat Mode: Only 2 tabs, simplified flow
+        tab2, tab3 = st.tabs(["🔍 Scraper", "📊 Data"])
         
-        if st.session_state.authenticated:
-            st.success("✅ You are authenticated and ready to scrape!")
-            if st.button("🔓 Disconnect"):
-                st.session_state.authenticated = False
-                st.session_state.scraper = None
-                st.rerun()
-        else:
-            # Check if credentials are provided
-            if not config['api_id'] or not config['api_hash'] or not config['phone']:
-                if not config['demo_mode']:
-                    st.warning("⚠️ Please fill in your API credentials in the sidebar.")
-            else:
-                if st.session_state.phone_code_hash:
-                    # Code entry form
-                    st.info("📲 A verification code has been sent to your Telegram app.")
-                    
-                    code = st.text_input("Enter verification code", max_chars=10)
-                    password = st.text_input("2FA Password (if enabled)", type="password")
-                    
-                    if st.button("✅ Verify Code"):
-                        with st.spinner("Verifying..."):
-                            success = asyncio.run(sign_in_user(code, password if password else None))
-                            if success:
-                                st.success("✅ Successfully authenticated!")
-                                st.rerun()
-                else:
-                    if st.button("🔑 Connect to Telegram"):
-                        with st.spinner("Connecting..."):
-                            already_auth = asyncio.run(authenticate_user(config))
-                            if already_auth:
-                                st.success("✅ Already authenticated!")
-                                st.rerun()
-                            else:
-                                if not st.session_state.authenticated:
-                                    st.info("📲 Check your Telegram for verification code.")
-                                    st.rerun()
-    
-    with tab2:
-        st.markdown("### 🔍 Scraper")
-        
-        if not st.session_state.authenticated:
-            st.warning("⚠️ Please fill in your API credentials in the sidebar.")
-        else:
+        with tab2:
+            st.markdown("### 🔍 Tgstat Scraper")
+            st.info("ℹ️ Using **Tgstat Public Search**. No login required.")
+            
             search_params = render_search_params()
             
             st.markdown("---")
@@ -531,15 +499,97 @@ def main():
                 start_button = st.button(
                     "🚀 Start Scraping",
                     disabled=st.session_state.scraping_in_progress,
-                    use_container_width=True
+                    use_container_width=True,
+                    key="start_tgstat"
                 )
             
             if start_button:
                 asyncio.run(run_scraper(config, search_params, progress_bar, status_text))
                 st.rerun()
-    
-    with tab3:
-        render_results()
+
+        with tab3:
+            render_results()
+            
+    else:
+        # Telegram API Mode: 3 tabs with Auth
+        tab1, tab2, tab3 = st.tabs(["🔓 Authentication", "🔍 Scraper", "📊 Data"])
+        
+        with tab1:
+            st.markdown("### 🔐 Connect to Telegram")
+            
+            if st.session_state.authenticated:
+                st.success("✅ You are authenticated and ready to scrape!")
+                if st.button("🔓 Disconnect"):
+                    st.session_state.authenticated = False
+                    st.session_state.scraper = None
+                    st.rerun()
+            else:
+                # Check if credentials are provided
+                if not config['api_id'] or not config['api_hash'] or not config['phone']:
+                    if not config['demo_mode']:
+                        st.warning("⚠️ Please fill in your API credentials in the sidebar.")
+                else:
+                    if st.session_state.phone_code_hash:
+                        # Code entry form
+                        st.info("📲 A verification code has been sent to your Telegram app.")
+                        
+                        code = st.text_input("Enter verification code", max_chars=10)
+                        password = st.text_input("2FA Password (if enabled)", type="password")
+                        
+                        if st.button("✅ Verify Code"):
+                            with st.spinner("Verifying..."):
+                                success = asyncio.run(sign_in_user(code, password if password else None))
+                                if success:
+                                    st.success("✅ Successfully authenticated!")
+                                    st.rerun()
+                    else:
+                        if st.button("🔑 Connect to Telegram"):
+                            with st.spinner("Connecting..."):
+                                already_auth = asyncio.run(authenticate_user(config))
+                                if already_auth:
+                                    st.success("✅ Already authenticated!")
+                                    st.rerun()
+                                else:
+                                    if not st.session_state.authenticated:
+                                        st.info("📲 Check your Telegram for verification code.")
+                                        st.rerun()
+        
+        with tab2:
+            st.markdown("### 🔍 Scraper")
+            
+            if not st.session_state.authenticated:
+                st.warning("⚠️ Please authenticate in the 'Authentication' tab first.")
+            else:
+                search_params = render_search_params()
+                
+                st.markdown("---")
+                
+                # Status area
+                status_placeholder = st.empty()
+                progress_bar = st.progress(0, text="Ready to scrape")
+                status_text = st.empty()
+                
+                # Log area
+                with st.expander("📜 Activity Log", expanded=False):
+                    log_area = st.empty()
+                    if st.session_state.status_messages:
+                        log_area.text("\n".join(st.session_state.status_messages[-20:]))
+                
+                col1, col2 = st.columns([1, 3])
+                with col1:
+                    start_button = st.button(
+                        "🚀 Start Scraping",
+                        disabled=st.session_state.scraping_in_progress,
+                        use_container_width=True,
+                        key="start_api"
+                    )
+                
+                if start_button:
+                    asyncio.run(run_scraper(config, search_params, progress_bar, status_text))
+                    st.rerun()
+        
+        with tab3:
+            render_results()
     
     # Footer
     st.markdown("---")
