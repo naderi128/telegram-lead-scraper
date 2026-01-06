@@ -448,22 +448,12 @@ class TgstatScraper:
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
             'Referer': 'https://tgstat.com/',
+            'Origin': 'https://tgstat.com',
+            'Content-Type': 'application/x-www-form-urlencoded',
             'X-Requested-With': 'XMLHttpRequest', # Crucial for search to work
         }
     
-    async def search_channels(
-        self,
-        keyword: str,
-        limit: int = 50,
-        category_tag: str = "",
-        status_callback: Optional[Callable[[str], None]] = None
-    ) -> AsyncGenerator[dict, None]:
-        """
-        Search for channels via DDG pointing to tgstat.com, then scrape details.
-        """
-        if status_callback:
-            status_callback(f"🔎 searching for '{keyword}' via DuckDuckGo...")
-            
+    
     async def _get_ddg_results(self, query: str, limit: int) -> list:
         try:
             return DDGS().text(query, max_results=limit)
