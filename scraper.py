@@ -448,6 +448,7 @@ class TgstatScraper:
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
             'Referer': 'https://tgstat.com/',
+            'X-Requested-With': 'XMLHttpRequest', # Crucial for search to work
         }
     
     async def search_channels(
@@ -504,15 +505,25 @@ class TgstatScraper:
                 if r_post.status_code != 200:
                     return []
                 
-                soup_res = BeautifulSoup(r_post.text, 'html.parser')
+                # Parse JSON response
+                try:
+                    json_data = r_post.json()
+                    html_content = json_data.get('html', '')
+                    soup_res = BeautifulSoup(html_content, 'html.parser')
+                except:
+                    # Fallback if not JSON (though it should be with the header)
+                    soup_res = BeautifulSoup(r_post.text, 'html.parser')
                 
                 # Parse cards
-                # Tgstat cards often have class 'card' or 'channel-card'
-                # Let's try finding links that look like channels
                 links = soup_res.find_all('a', href=True)
                 for l in links:
                     href = l['href']
-                    if 'tgstat.com/channel/@' in href or 'tgstat.com/channel/' in href:
+                    # Matches: https://tgstat.com/channel/@username/stat or similar
+                    if '/channel/@' in href or '/channel/' in href:
+                         # Clean URL to get base channel URL
+                         if '/stat' in href:
+                             href = href.replace('/stat', '')
+                         
                          if href not in results:
                              results.append(href)
                              if len(results) >= limit:
