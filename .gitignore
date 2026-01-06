@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+venv/
+.venv/
+env/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Local DB & Session
+*.db
+*.session
+*.session-journal
+leads.db
+
+# VS Code
+.vscode/
+
+# Build
+build/
+dist/
+*.spec
