@@ -246,6 +246,13 @@ def render_search_params():
             value=True,
             help="Filter out VPN, adult, gambling, and inappropriate channels"
         )
+        
+        # Business mode filter
+        business_mode = st.checkbox(
+            "💼 Business Mode (B2B Leads)",
+            value=True,
+            help="Focus on commercial channels (shops, companies, brands) - filter out personal/hobby channels"
+        )
     
     # Map region to domain
     region_domain = "ir.tgstat.com" if "Iranian" in region else "tgstat.com"
@@ -277,7 +284,8 @@ def render_search_params():
         'limit': limit_per_keyword,
         'category_tag': category_slug,
         'region': region_domain,
-        'safe_mode': safe_mode
+        'safe_mode': safe_mode,
+        'business_mode': business_mode
     }
 
 
@@ -447,6 +455,7 @@ async def run_scraper(config: dict, search_params: dict, progress_bar, status_te
                 category_tag=search_params['category_tag'],
                 region=search_params.get('region', 'tgstat.com'),
                 safe_mode=search_params.get('safe_mode', True),
+                business_mode=search_params.get('business_mode', True),
                 status_callback=status_callback,
                 flood_callback=flood_callback
             ):

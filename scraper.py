@@ -536,6 +536,101 @@ class TgstatScraper:
                 return False
         return True
     
+    # Keywords that indicate personal/hobby channels (not good for B2B)
+    PERSONAL_CHANNEL_KEYWORDS = [
+        # Personal indicators
+        'personal', 'شخصی', 'خصوصی', 'من', 'ما', 'my channel', 'my page',
+        'کانال من', 'صفحه من', 'روزانه های من', 'دلنوشته', 'یادداشت',
+        
+        # Hobby/Fan channels
+        'fan', 'فن', 'طرفدار', 'هوادار', 'fanpage', 'fan page',
+        'عاشقان', 'دوستداران',
+        
+        # Music artists (personal)
+        'official artist', 'singer', 'خواننده', 'هنرمند', 'موزیسین',
+        
+        # Personal blogs
+        'blog', 'بلاگ', 'وبلاگ', 'daily', 'روزانه', 'diary', 'دفترچه',
+        
+        # Poetry/Literature (personal)
+        'poem', 'شعر', 'غزل', 'poetry', 'ادبی', 'ادبیات',
+        
+        # Memes/Fun (not commercial)
+        'meme', 'میم', 'طنز', 'joke', 'جوک', 'شوخی', 'خنده',
+        'funny', 'فان', 'تفریحی',
+        
+        # Religious (usually not commercial)
+        'مذهبی', 'دینی', 'قرآن', 'دعا', 'مداحی', 'نوحه',
+        'religious', 'prayer', 'quran',
+        
+        # Wallpaper/Media sharing
+        'wallpaper', 'والپیپر', 'پس زمینه', 'عکس نوشته',
+        'تصاویر', 'عکس های', 'photo', 'فتو',
+        
+        # Free stuff (not paying customers)
+        'رایگان', 'free', 'مجانی', 'بدون هزینه',
+        
+        # Downloads/Piracy
+        'download', 'دانلود', 'فیلم و سریال', 'موزیک ویدیو',
+        
+        # Chat/Social groups
+        'chat', 'چت', 'گپ', 'دوستی', 'آشنایی', 'همسریابی',
+    ]
+    
+    # Keywords that indicate good B2B channels
+    BUSINESS_CHANNEL_KEYWORDS = [
+        # Business indicators
+        'shop', 'store', 'فروشگاه', 'مغازه', 'بوتیک', 'boutique',
+        'brand', 'برند', 'company', 'شرکت', 'موسسه', 'سازمان',
+        'official', 'رسمی', 'agency', 'آژانس', 'استودیو', 'studio',
+        
+        # E-commerce
+        'خرید', 'buy', 'فروش', 'sale', 'sell', 'order', 'سفارش',
+        'price', 'قیمت', 'تخفیف', 'discount', 'offer', 'پیشنهاد',
+        
+        # Services
+        'service', 'خدمات', 'مشاوره', 'consulting', 'آموزشگاه',
+        'academy', 'آکادمی', 'institute', 'موسسه',
+        
+        # Products
+        'product', 'محصول', 'کالا', 'goods', 'item',
+        'collection', 'کالکشن', 'مجموعه',
+        
+        # Professional
+        'professional', 'حرفه ای', 'تخصصی', 'expert', 'متخصص',
+        'certified', 'معتبر', 'official', 'رسمی',
+    ]
+    
+    def _is_business_channel(self, title: str, bio: str = "", members_count: int = 0) -> bool:
+        """
+        Check if a channel is likely a business/commercial channel.
+        Returns True if it seems commercial, False if personal/hobby.
+        """
+        text_to_check = f"{title} {bio}".lower()
+        
+        # Check for personal indicators (negative signals)
+        personal_score = 0
+        for keyword in self.PERSONAL_CHANNEL_KEYWORDS:
+            if keyword.lower() in text_to_check:
+                personal_score += 1
+        
+        # Check for business indicators (positive signals)
+        business_score = 0
+        for keyword in self.BUSINESS_CHANNEL_KEYWORDS:
+            if keyword.lower() in text_to_check:
+                business_score += 1
+        
+        # If more personal than business indicators, skip
+        if personal_score > business_score:
+            return False
+        
+        # If has business indicators, it's good
+        if business_score > 0:
+            return True
+        
+        # If no clear signals, let it pass (benefit of doubt)
+        return True
+    
     async def _scrape_category_page(self, category_slug: str, limit: int, region: str = "tgstat.com", status_callback: Optional[Callable[[str], None]] = None) -> list:
         """
         Scrape channels from a Tgstat category page (doesn't require auth).
@@ -729,6 +824,7 @@ class TgstatScraper:
         category_tag: str = "",
         region: str = "tgstat.com",
         safe_mode: bool = True,
+        business_mode: bool = True,
         status_callback: Optional[Callable[[str], None]] = None,
         flood_callback: Optional[Callable[[int], None]] = None
     ) -> AsyncGenerator[dict, None]:
@@ -869,6 +965,12 @@ class TgstatScraper:
                 if safe_mode and not self._is_safe_channel(title, bio_text):
                     if status_callback:
                         status_callback(f"🚫 Skipping unsafe channel: {username}")
+                    continue
+                
+                # Business mode filter
+                if business_mode and not self._is_business_channel(title, bio_text, members_count):
+                    if status_callback:
+                        status_callback(f"👤 Skipping personal channel: {username}")
                     continue
                 
                 # Admin Contact
