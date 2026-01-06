@@ -460,7 +460,7 @@ class TgstatScraper:
         except Exception:
             return []
 
-    async def _search_direct_tgstat(self, keyword: str, limit: int) -> list:
+    async def _search_direct_tgstat(self, keyword: str, limit: int, status_callback: Optional[Callable[[str], None]] = None) -> list:
         """
         Fallback: Try to search directly on tgstat.com using their form.
         """
@@ -472,11 +472,13 @@ class TgstatScraper:
                 # 1. GET to get token
                 r_get = await client.get(url_search)
                 if r_get.status_code != 200:
+                    if status_callback: status_callback(f"⚠️ Strategy 3 Failed: GET returned {r_get.status_code}")
                     return []
                 
                 soup = BeautifulSoup(r_get.text, 'html.parser')
                 token_input = soup.find('input', {'name': '_tgstat_csrk'})
                 if not token_input:
+                    if status_callback: status_callback("⚠️ Strategy 3 Failed: No CSRF token found in GET response")
                     return []
                 token = token_input['value']
                 
@@ -493,13 +495,16 @@ class TgstatScraper:
                 
                 r_post = await client.post(url_search, data=data)
                 if r_post.status_code != 200:
+                    if status_callback: status_callback(f"⚠️ Strategy 3 Failed: POST returned {r_post.status_code}")
                     return []
                 
                 # Parse JSON response
+                is_json = False
                 try:
                     json_data = r_post.json()
                     html_content = json_data.get('html', '')
                     soup_res = BeautifulSoup(html_content, 'html.parser')
+                    is_json = True
                 except:
                     # Fallback if not JSON (though it should be with the header)
                     soup_res = BeautifulSoup(r_post.text, 'html.parser')
@@ -518,7 +523,12 @@ class TgstatScraper:
                              results.append(href)
                              if len(results) >= limit:
                                  break
-        except Exception:
+                
+                if not results and status_callback:
+                    status_callback(f"⚠️ Strategy 3: Request success but found 0 channel links. JSON parsing? {is_json}")
+
+        except Exception as e:
+            if status_callback: status_callback(f"⚠️ Strategy 3 Error: {str(e)}")
             pass
             
         return results
@@ -559,7 +569,7 @@ class TgstatScraper:
         if hasattr(self, '_search_direct_tgstat') and len(found_urls) < 3:
              if status_callback:
                 status_callback(f"🔎 Strategy 3: Direct Tgstat Search...")
-             direct_urls = await self._search_direct_tgstat(keyword, limit)
+             direct_urls = await self._search_direct_tgstat(keyword, limit, status_callback)
              for href in direct_urls:
                  if href not in found_urls:
                      found_urls.add(href)
