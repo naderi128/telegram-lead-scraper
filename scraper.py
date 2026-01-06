@@ -453,6 +453,128 @@ class TgstatScraper:
             'X-Requested-With': 'XMLHttpRequest', # Crucial for search to work
         }
     
+    # Category slugs mapping for keyword matching
+    CATEGORY_SLUGS = {
+        'crypto': 'crypto', 'cryptocurrency': 'crypto', 'bitcoin': 'crypto', 'btc': 'crypto',
+        'tech': 'tech', 'technology': 'tech', 'programming': 'tech', 'software': 'tech',
+        'news': 'news', 'media': 'news',
+        'business': 'business', 'startup': 'business', 'marketing': 'business',
+        'education': 'education', 'learning': 'education',
+        'entertainment': 'entertainment', 'fun': 'entertainment',
+        'music': 'music',
+        'politics': 'politics',
+        'sport': 'sport', 'sports': 'sport',
+        'design': 'design',
+        'food': 'food',
+        'travel': 'travel',
+        'fashion': 'fashion',
+        'health': 'health',
+    }
+    
+    async def _scrape_category_page(self, category_slug: str, limit: int, status_callback: Optional[Callable[[str], None]] = None) -> list:
+        """
+        Scrape channels from a Tgstat category page (doesn't require auth).
+        """
+        results = []
+        url = f"https://tgstat.com/{category_slug}"
+        
+        try:
+            # Use simpler headers for category pages
+            simple_headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+            }
+            
+            async with httpx.AsyncClient(headers=simple_headers, follow_redirects=True, timeout=20.0) as client:
+                if status_callback:
+                    status_callback(f"Fetching category page: {url}")
+                
+                r = await client.get(url)
+                
+                if r.status_code != 200:
+                    if status_callback:
+                        status_callback(f"Category page returned {r.status_code}")
+                    return []
+                
+                # Check for auth requirement
+                if "Authentication Required" in r.text:
+                    if status_callback:
+                        status_callback(f"Category page requires auth")
+                    return []
+                
+                soup = BeautifulSoup(r.text, 'html.parser')
+                
+                # Find channel links
+                links = soup.find_all('a', href=True)
+                for l in links:
+                    href = l['href']
+                    if '/channel/@' in href:
+                        # Clean the URL
+                        if '/stat' in href:
+                            href = href.replace('/stat', '')
+                        if href not in results:
+                            results.append(href)
+                            if len(results) >= limit:
+                                break
+                
+                if status_callback:
+                    status_callback(f"Found {len(results)} channels from category page")
+                    
+        except Exception as e:
+            if status_callback:
+                status_callback(f"Category scrape error: {str(e)}")
+        
+        return results
+    
+    async def _scrape_ratings_page(self, limit: int, status_callback: Optional[Callable[[str], None]] = None) -> list:
+        """
+        Scrape channels from Tgstat ratings page.
+        """
+        results = []
+        url = "https://tgstat.com/ratings/channels"
+        
+        try:
+            simple_headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            }
+            
+            async with httpx.AsyncClient(headers=simple_headers, follow_redirects=True, timeout=20.0) as client:
+                if status_callback:
+                    status_callback(f"Fetching ratings page...")
+                
+                r = await client.get(url)
+                
+                if r.status_code != 200:
+                    return []
+                
+                if "Authentication Required" in r.text:
+                    if status_callback:
+                        status_callback(f"Ratings page requires auth")
+                    return []
+                
+                soup = BeautifulSoup(r.text, 'html.parser')
+                
+                links = soup.find_all('a', href=True)
+                for l in links:
+                    href = l['href']
+                    if '/channel/@' in href:
+                        if '/stat' in href:
+                            href = href.replace('/stat', '')
+                        if href not in results:
+                            results.append(href)
+                            if len(results) >= limit:
+                                break
+                
+                if status_callback:
+                    status_callback(f"Found {len(results)} channels from ratings page")
+                    
+        except Exception as e:
+            if status_callback:
+                status_callback(f"Ratings scrape error: {str(e)}")
+        
+        return results
     
     async def _get_ddg_results(self, query: str, limit: int) -> list:
         try:
@@ -544,48 +666,56 @@ class TgstatScraper:
         flood_callback: Optional[Callable[[int], None]] = None
     ) -> AsyncGenerator[dict, None]:
         """
-        Search for channels via DDG pointing to tgstat.com, then scrape details.
+        Search for channels via category pages, ratings, and DDG fallback.
         """
         found_urls = set()
         
-        # Strategy 1: Specific DDG
-        if status_callback:
-            status_callback(f"🔎 Strategy 1: DDG Site Search for '{keyword}'...")
+        # Strategy 1: Try to match keyword to a category
+        keyword_lower = keyword.lower().strip()
+        category_slug = self.CATEGORY_SLUGS.get(keyword_lower)
         
-        ddg_results = await self._get_ddg_results(f'site:tgstat.com/channel "{keyword}"', limit)
-        if ddg_results:
-             for res in ddg_results:
-                 found_urls.add(res.get('href', ''))
-             if status_callback:
-                 status_callback(f"✅ Strategy 1: Found {len(ddg_results)} DDG results")
+        if category_slug:
+            if status_callback:
+                status_callback(f"🔎 Strategy 1: Scraping category page '{category_slug}'...")
+            category_urls = await self._scrape_category_page(category_slug, limit, status_callback)
+            for url in category_urls:
+                found_urls.add(url)
         else:
-             if status_callback:
-                 status_callback(f"⚠️ Strategy 1: DDG returned 0 results")
+            if status_callback:
+                status_callback(f"🔎 Strategy 1: No matching category for '{keyword}', skipping...")
         
-        # Strategy 2: Broad DDG
+        # Strategy 2: Scrape ratings page (general top channels)
         if len(found_urls) < 5:
             if status_callback:
-                status_callback(f"🔎 Strategy 2: Broad DDG Search...")
-            ddg_results_broad = await self._get_ddg_results(f'tgstat "{keyword}" channel', limit)
-            if ddg_results_broad:
-                for res in ddg_results_broad:
-                    href = res.get('href', '')
-                    if 'tgstat.com/channel/' in href and href not in found_urls:
-                        found_urls.add(href)
+                status_callback(f"🔎 Strategy 2: Scraping ratings page...")
+            rating_urls = await self._scrape_ratings_page(limit, status_callback)
+            for url in rating_urls:
+                if url not in found_urls:
+                    found_urls.add(url)
+        
+        # Strategy 3: DDG Site Search (fallback)
+        if len(found_urls) < 5:
+            if status_callback:
+                status_callback(f"🔎 Strategy 3: DDG Site Search for '{keyword}'...")
+            
+            ddg_results = await self._get_ddg_results(f'site:tgstat.com/channel "{keyword}"', limit)
+            if ddg_results:
+                for res in ddg_results:
+                    found_urls.add(res.get('href', ''))
                 if status_callback:
-                    status_callback(f"✅ Strategy 2: Found {len(ddg_results_broad)} DDG results")
+                    status_callback(f"✅ Strategy 3: Found {len(ddg_results)} DDG results")
             else:
                 if status_callback:
-                    status_callback(f"⚠️ Strategy 2: DDG returned 0 results")
-
-        # Strategy 3: Direct POST (Fallback)
-        if hasattr(self, '_search_direct_tgstat') and len(found_urls) < 3:
-             if status_callback:
-                status_callback(f"🔎 Strategy 3: Direct Tgstat Search...")
-             direct_urls = await self._search_direct_tgstat(keyword, limit, status_callback)
-             for href in direct_urls:
-                 if href not in found_urls:
-                     found_urls.add(href)
+                    status_callback(f"⚠️ Strategy 3: DDG returned 0 results")
+        
+        # Strategy 4: Direct Tgstat POST (last resort - likely blocked)
+        if len(found_urls) < 3:
+            if status_callback:
+                status_callback(f"🔎 Strategy 4: Direct Tgstat Search...")
+            direct_urls = await self._search_direct_tgstat(keyword, limit, status_callback)
+            for href in direct_urls:
+                if href not in found_urls:
+                    found_urls.add(href)
 
         if not found_urls:
             if status_callback:
