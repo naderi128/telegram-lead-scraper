@@ -527,7 +527,8 @@ class TgstatScraper:
         keyword: str,
         limit: int = 50,
         category_tag: str = "",
-        status_callback: Optional[Callable[[str], None]] = None
+        status_callback: Optional[Callable[[str], None]] = None,
+        flood_callback: Optional[Callable[[int], None]] = None
     ) -> AsyncGenerator[dict, None]:
         """
         Search for channels via DDG pointing to tgstat.com, then scrape details.
