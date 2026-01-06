@@ -435,6 +435,14 @@ import httpx
 from bs4 import BeautifulSoup
 from duckduckgo_search import DDGS
 
+# Anti-ban: Random delay between requests (in seconds)
+def get_random_delay(min_delay: float = 2.0, max_delay: float = 5.0) -> float:
+    """
+    Generate a random delay to avoid rate limiting and bans.
+    Uses human-like delays between 2-5 seconds.
+    """
+    return random.uniform(min_delay, max_delay)
+
 # ... [Keep existing functions and TelegramScraper] ...
 
 class TgstatScraper:
@@ -472,17 +480,52 @@ class TgstatScraper:
         'games': 'games', 'gaming': 'games',
     }
     
-    # Blocked keywords for safe mode
+    # Blocked keywords for safe mode (comprehensive list)
     BLOCKED_KEYWORDS = [
-        # VPN/Proxy
-        'vpn', 'proxy', 'فیلترشکن', 'فیلتر شکن', 'v2ray', 'v2رای',
-        # Adult/18+
-        'adult', '18+', 'xxx', 'porn', 'sex', 'nude', 'nsfw',
-        'سکس', 'سکسی', 'بزرگسال',
-        # Gambling
-        'casino', 'gambling', 'bet', 'شرط بندی', 'کازینو', 'قمار',
-        # Hacking/Illegal
-        'hack', 'crack', 'هک', 'کرک',
+        # VPN/Proxy/Filter bypass (فیلترشکن)
+        'vpn', 'proxy', 'v2ray', 'v2رای', 'vmess', 'vless', 'trojan', 'shadowsock',
+        'فیلترشکن', 'فیلتر شکن', 'فیلتر', 'دور زدن', 'اینترنت آزاد', 'عبور از فیلتر',
+        'وی پی ان', 'پروکسی', 'کانفیگ رایگان', 'سرور رایگان', 'اینترنت رایگان',
+        'outline', 'wireguard', 'openvpn', 'nekoray', 'matsuri', 'v2rayng',
+        
+        # Adult/18+ (محتوای بزرگسال)
+        'adult', '18+', '+18', 'xxx', 'porn', 'porno', 'sex', 'sexy', 'nude', 'naked',
+        'nsfw', 'onlyfans', 'erotic', 'fetish', 'milf', 'teen',
+        'سکس', 'سکسی', 'بزرگسال', 'صیغه', 'دوست یابی', 'ارتباط جنسی',
+        'فیلم سوپر', 'عکس لخت', 'پورن', 'سوپر', 'هات', 'سک', 
+        'رابطه', 'شب', 'همخوابی', 'خیانت',
+        
+        # Gambling/Betting (قمار و شرط بندی)
+        'casino', 'gambling', 'gamble', 'bet', 'betting', 'poker', 'slot', 'jackpot',
+        'blackjack', 'roulette', 'baccarat', 'sports bet', 'live bet',
+        'شرط بندی', 'شرطبندی', 'کازینو', 'قمار', 'بت', 'پیش بینی فوتبال',
+        'پیش بینی', 'سایت شرط', 'بازی انفجار', 'انفجار', 'رولت', 'پوکر',
+        'اسلات', 'جک پات', 'برد تضمینی', 'درآمد میلیونی', 'پول آسان',
+        'بلک جک', 'باکارات', 'بازی آنلاین پولی',
+        
+        # Hacking/Cracking/Illegal (هک و کرک)
+        'hack', 'hacker', 'hacking', 'crack', 'cracker', 'cracked', 'keygen', 'patch',
+        'exploit', 'malware', 'trojan', 'virus', 'phishing', 'spyware', 'ransomware',
+        'هک', 'هکر', 'کرک', 'کرکر', 'نفوذ', 'دزدی اطلاعات', 'دزدی حساب',
+        'هک تلگرام', 'هک اینستا', 'هک واتساپ', 'جعل', 'کلاهبرداری',
+        'ربات هک', 'شماره مجازی', 'اکانت کرکی',
+        
+        # Drugs (مواد مخدر)
+        'drug', 'weed', 'marijuana', 'cannabis', 'cocaine', 'heroin', 'meth',
+        'مواد', 'مخدر', 'گل', 'حشیش', 'شیشه', 'تریاک', 'هروئین',
+        'گراس', 'ماری جوانا', 'کوکائین', 'قرص', 'روانگردان',
+        
+        # Scam/Fraud (کلاهبرداری)
+        'scam', 'fraud', 'ponzi', 'pyramid', 'mlm', 'hyip', 'doubler',
+        'کلاهبرداری', 'کلاهبردار', 'پانزی', 'هرمی', 'دابلر', 'ضریب',
+        'سرمایه گذاری تضمینی', 'سود تضمینی', 'درآمد بدون کار',
+        'پول مفت', 'ثروت سریع', 'میلیاردر شو',
+        
+        # Weapons (اسلحه)
+        'gun', 'weapon', 'اسلحه', 'سلاح', 'تفنگ', 'چاقو', 'مهمات',
+        
+        # Fake documents (جعل مدارک)
+        'fake id', 'fake document', 'مدرک جعلی', 'گواهی جعلی', 'دیپلم', 'مدرک',
     ]
     
     def _is_safe_channel(self, title: str, bio: str = "") -> bool:
