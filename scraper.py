@@ -525,7 +525,9 @@ class TgstatScraper:
                                  break
                 
                 if not results and status_callback:
-                    status_callback(f"⚠️ Strategy 3: Request success but found 0 channel links. JSON parsing? {is_json}")
+                    # Log a snippet of HTML for debugging
+                    html_snippet = html_content[:300] if is_json else r_post.text[:300]
+                    status_callback(f"⚠️ Strategy 3: 0 links found. HTML snippet: {html_snippet}")
 
         except Exception as e:
             if status_callback: status_callback(f"⚠️ Strategy 3 Error: {str(e)}")
