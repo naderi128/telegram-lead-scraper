@@ -187,16 +187,28 @@ def render_search_params():
             step=5
         )
         
+        # Region selector for Tgstat
+        region = st.selectbox(
+            "Channel Region",
+            options=["🌍 International", "🇮🇷 Iranian (Farsi)"],
+            index=0,
+            help="Select the region to search channels from"
+        )
+        
         category_tag = st.text_input(
             "Category Tag",
             placeholder="e.g., Crypto",
             value="Demo" if st.session_state.get('demo_mode', False) else ""
         )
     
+    # Map region to domain
+    region_domain = "ir.tgstat.com" if "Iranian" in region else "tgstat.com"
+    
     return {
         'keywords': [k.strip() for k in keywords.split(',') if k.strip()],
         'limit': limit_per_keyword,
-        'category_tag': category_tag
+        'category_tag': category_tag,
+        'region': region_domain
     }
 
 
@@ -364,6 +376,7 @@ async def run_scraper(config: dict, search_params: dict, progress_bar, status_te
                 keyword=keyword,
                 limit=search_params['limit'],
                 category_tag=search_params['category_tag'],
+                region=search_params.get('region', 'tgstat.com'),
                 status_callback=status_callback,
                 flood_callback=flood_callback
             ):

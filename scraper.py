@@ -471,12 +471,12 @@ class TgstatScraper:
         'health': 'health',
     }
     
-    async def _scrape_category_page(self, category_slug: str, limit: int, status_callback: Optional[Callable[[str], None]] = None) -> list:
+    async def _scrape_category_page(self, category_slug: str, limit: int, region: str = "tgstat.com", status_callback: Optional[Callable[[str], None]] = None) -> list:
         """
         Scrape channels from a Tgstat category page (doesn't require auth).
         """
         results = []
-        url = f"https://tgstat.com/{category_slug}"
+        url = f"https://{region}/{category_slug}"
         
         try:
             # Use simpler headers for category pages
@@ -662,6 +662,7 @@ class TgstatScraper:
         keyword: str,
         limit: int = 50,
         category_tag: str = "",
+        region: str = "tgstat.com",
         status_callback: Optional[Callable[[str], None]] = None,
         flood_callback: Optional[Callable[[int], None]] = None
     ) -> AsyncGenerator[dict, None]:
@@ -670,6 +671,9 @@ class TgstatScraper:
         """
         found_urls = set()
         
+        if status_callback:
+            status_callback(f"Using region: {region}")
+        
         # Strategy 1: Try to match keyword to a category
         keyword_lower = keyword.lower().strip()
         category_slug = self.CATEGORY_SLUGS.get(keyword_lower)
@@ -677,7 +681,7 @@ class TgstatScraper:
         if category_slug:
             if status_callback:
                 status_callback(f"🔎 Strategy 1: Scraping category page '{category_slug}'...")
-            category_urls = await self._scrape_category_page(category_slug, limit, status_callback)
+            category_urls = await self._scrape_category_page(category_slug, limit, region, status_callback)
             for url in category_urls:
                 found_urls.add(url)
         else:
