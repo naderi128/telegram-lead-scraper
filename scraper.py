@@ -556,16 +556,27 @@ class TgstatScraper:
         if ddg_results:
              for res in ddg_results:
                  found_urls.add(res.get('href', ''))
+             if status_callback:
+                 status_callback(f"✅ Strategy 1: Found {len(ddg_results)} DDG results")
+        else:
+             if status_callback:
+                 status_callback(f"⚠️ Strategy 1: DDG returned 0 results")
         
         # Strategy 2: Broad DDG
         if len(found_urls) < 5:
             if status_callback:
                 status_callback(f"🔎 Strategy 2: Broad DDG Search...")
             ddg_results_broad = await self._get_ddg_results(f'tgstat "{keyword}" channel', limit)
-            for res in ddg_results_broad:
-                href = res.get('href', '')
-                if 'tgstat.com/channel/' in href and href not in found_urls:
-                    found_urls.add(href)
+            if ddg_results_broad:
+                for res in ddg_results_broad:
+                    href = res.get('href', '')
+                    if 'tgstat.com/channel/' in href and href not in found_urls:
+                        found_urls.add(href)
+                if status_callback:
+                    status_callback(f"✅ Strategy 2: Found {len(ddg_results_broad)} DDG results")
+            else:
+                if status_callback:
+                    status_callback(f"⚠️ Strategy 2: DDG returned 0 results")
 
         # Strategy 3: Direct POST (Fallback)
         if hasattr(self, '_search_direct_tgstat') and len(found_urls) < 3:
