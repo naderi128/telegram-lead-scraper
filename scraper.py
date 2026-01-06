@@ -469,7 +469,29 @@ class TgstatScraper:
         'travel': 'travel',
         'fashion': 'fashion',
         'health': 'health',
+        'games': 'games', 'gaming': 'games',
     }
+    
+    # Blocked keywords for safe mode
+    BLOCKED_KEYWORDS = [
+        # VPN/Proxy
+        'vpn', 'proxy', 'فیلترشکن', 'فیلتر شکن', 'v2ray', 'v2رای',
+        # Adult/18+
+        'adult', '18+', 'xxx', 'porn', 'sex', 'nude', 'nsfw',
+        'سکس', 'سکسی', 'بزرگسال',
+        # Gambling
+        'casino', 'gambling', 'bet', 'شرط بندی', 'کازینو', 'قمار',
+        # Hacking/Illegal
+        'hack', 'crack', 'هک', 'کرک',
+    ]
+    
+    def _is_safe_channel(self, title: str, bio: str = "") -> bool:
+        """Check if a channel is safe based on title and bio."""
+        text_to_check = f"{title} {bio}".lower()
+        for blocked in self.BLOCKED_KEYWORDS:
+            if blocked.lower() in text_to_check:
+                return False
+        return True
     
     async def _scrape_category_page(self, category_slug: str, limit: int, region: str = "tgstat.com", status_callback: Optional[Callable[[str], None]] = None) -> list:
         """
@@ -663,6 +685,7 @@ class TgstatScraper:
         limit: int = 50,
         category_tag: str = "",
         region: str = "tgstat.com",
+        safe_mode: bool = True,
         status_callback: Optional[Callable[[str], None]] = None,
         flood_callback: Optional[Callable[[int], None]] = None
     ) -> AsyncGenerator[dict, None]:
@@ -798,6 +821,12 @@ class TgstatScraper:
                 meta_desc = soup.find('meta', {'name': 'description'})
                 if meta_desc:
                     bio_text = meta_desc.get('content', '')
+                
+                # Safe mode filter
+                if safe_mode and not self._is_safe_channel(title, bio_text):
+                    if status_callback:
+                        status_callback(f"🚫 Skipping unsafe channel: {username}")
+                    continue
                 
                 # Admin Contact
                 admin_contact = extract_admin_contacts(bio_text)

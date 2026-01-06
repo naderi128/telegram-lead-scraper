@@ -169,13 +169,58 @@ def render_search_params():
     """Render search parameters section."""
     st.markdown("### 🔍 Search Parameters")
     
+    # Category options for Tgstat
+    CATEGORIES = {
+        "-- Select Category --": "",
+        "💰 Crypto / ارز دیجیتال": "crypto",
+        "💻 Technology / تکنولوژی": "tech",
+        "📰 News / اخبار": "news",
+        "💼 Business / کسب و کار": "business",
+        "📚 Education / آموزش": "education",
+        "🎬 Entertainment / سرگرمی": "entertainment",
+        "🎵 Music / موسیقی": "music",
+        "⚽ Sport / ورزش": "sport",
+        "🎨 Design / طراحی": "design",
+        "🍕 Food / غذا": "food",
+        "✈️ Travel / سفر": "travel",
+        "👗 Fashion / مد": "fashion",
+        "💊 Health / سلامت": "health",
+        "🎮 Games / بازی": "games",
+    }
+    
+    # Persian keyword mappings
+    PERSIAN_KEYWORDS = {
+        "کریپتو": "crypto", "ارز دیجیتال": "crypto", "بیتکوین": "crypto",
+        "تکنولوژی": "tech", "برنامه نویسی": "tech", "فناوری": "tech",
+        "اخبار": "news", "خبر": "news",
+        "کسب و کار": "business", "استارتاپ": "business", "بازاریابی": "business",
+        "آموزش": "education", "یادگیری": "education",
+        "سرگرمی": "entertainment", "تفریح": "entertainment",
+        "موسیقی": "music", "آهنگ": "music",
+        "ورزش": "sport", "فوتبال": "sport",
+        "طراحی": "design", "گرافیک": "design",
+        "غذا": "food", "آشپزی": "food",
+        "سفر": "travel", "گردشگری": "travel",
+        "مد": "fashion", "لباس": "fashion",
+        "سلامت": "health", "پزشکی": "health",
+        "بازی": "games", "گیم": "games",
+    }
+    
     col1, col2 = st.columns([2, 1])
     
     with col1:
+        # Category selector
+        selected_category = st.selectbox(
+            "📂 Category / دسته‌بندی",
+            options=list(CATEGORIES.keys()),
+            index=0,
+            help="Select a category or enter custom keywords below"
+        )
+        
         keywords = st.text_area(
-            "Keywords (comma-separated)",
-            placeholder="crypto, trading, forex, bitcoin",
-            value="crypto, forex" if st.session_state.get('demo_mode', False) else ""
+            "🔤 Keywords / کلیدواژه (comma-separated)",
+            placeholder="crypto, bitcoin, trading OR کریپتو، بیتکوین",
+            value=""
         )
     
     with col2:
@@ -189,26 +234,50 @@ def render_search_params():
         
         # Region selector for Tgstat
         region = st.selectbox(
-            "Channel Region",
+            "🌐 Channel Region / منطقه",
             options=["🌍 International", "🇮🇷 Iranian (Farsi)"],
             index=0,
             help="Select the region to search channels from"
         )
         
-        category_tag = st.text_input(
-            "Category Tag",
-            placeholder="e.g., Crypto",
-            value="Demo" if st.session_state.get('demo_mode', False) else ""
+        # Safe content filter
+        safe_mode = st.checkbox(
+            "🛡️ Safe Mode (Filter inappropriate)",
+            value=True,
+            help="Filter out VPN, adult, gambling, and inappropriate channels"
         )
     
     # Map region to domain
     region_domain = "ir.tgstat.com" if "Iranian" in region else "tgstat.com"
     
+    # Process keywords - convert Persian to English slugs
+    final_keywords = []
+    
+    # Add category if selected
+    category_slug = CATEGORIES.get(selected_category, "")
+    if category_slug:
+        final_keywords.append(category_slug)
+    
+    # Process user keywords
+    if keywords:
+        for kw in keywords.split(','):
+            kw = kw.strip()
+            if kw:
+                # Check if it's Persian and map it
+                if kw in PERSIAN_KEYWORDS:
+                    final_keywords.append(PERSIAN_KEYWORDS[kw])
+                else:
+                    final_keywords.append(kw.lower())
+    
+    # Remove duplicates while preserving order
+    final_keywords = list(dict.fromkeys(final_keywords))
+    
     return {
-        'keywords': [k.strip() for k in keywords.split(',') if k.strip()],
+        'keywords': final_keywords if final_keywords else ['crypto'],  # Default to crypto
         'limit': limit_per_keyword,
-        'category_tag': category_tag,
-        'region': region_domain
+        'category_tag': category_slug,
+        'region': region_domain,
+        'safe_mode': safe_mode
     }
 
 
@@ -377,6 +446,7 @@ async def run_scraper(config: dict, search_params: dict, progress_bar, status_te
                 limit=search_params['limit'],
                 category_tag=search_params['category_tag'],
                 region=search_params.get('region', 'tgstat.com'),
+                safe_mode=search_params.get('safe_mode', True),
                 status_callback=status_callback,
                 flood_callback=flood_callback
             ):
