@@ -37,7 +37,7 @@ def init_session_state():
         'phone_code_hash': None,
         'phone_code_hash': None,
         'scraper': None,
-        'scraper_type': 'Tgstat Scraper', # Default to Tgstat
+        'scraper_type': 'Tgstat Scraper (Web)', # Default to Tgstat
         'scraping_in_progress': False,
         'status_messages': [],
         'flood_wait_count': 0,
@@ -236,7 +236,7 @@ def render_search_params():
         region = st.selectbox(
             "🌐 Channel Region / منطقه",
             options=["🌍 International", "🇮🇷 Iranian (Farsi)"],
-            index=0,
+            index=1,  # Default to Iranian
             help="Select the region to search channels from"
         )
         
